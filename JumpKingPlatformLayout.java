@@ -11,6 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.imageio.*;
+import java.io.File;
+import java.awt.Image;
+import java.io.IOException;
 
 public class JumpKingPlatformLayout {
     public static void main(String[] args) {
@@ -65,36 +69,51 @@ class GamePanel extends JPanel {
         platforms = new ArrayList<>();
         
         // Ground platform
+        platforms.add(new Navpicna(100, 550, 0, 1.0));
         platforms.add(new Vodoravna(100, 550, 0, 1.0));
+        platforms.add(new Vodoravna(200, 550, 0, 1.0));
         platforms.add(new Vodoravna(300, 550, 0, 1.0));
+        platforms.add(new Vodoravna(400, 550, 0, 1.0));
         platforms.add(new Vodoravna(500, 550, 0, 1.0));
+        platforms.add(new Navpicna(600, 550, 0, 1.0));
         
         // First level platforms
+        platforms.add(new Navpicna(100, 480, 0, 1.0));
         platforms.add(new Vodoravna(200, 480, 0, 1.0));
         platforms.add(new Vodoravna(400, 480, 0, 1.0));
+        platforms.add(new Navpicna(600, 480, 0, 1.0));
         
         // Second level platforms
+        platforms.add(new Navpicna(100, 410, 0, 1.0));
         platforms.add(new Vodoravna(100, 410, 0, 1.0));
         platforms.add(new slopeUp(300, 410, 0, 1.0));
         platforms.add(new Vodoravna(500, 410, 0, 1.0));
+        platforms.add(new Navpicna(600, 410, 0, 1.0));
         
         // Third level platforms
+        platforms.add(new Navpicna(100, 340, 0, 1.0));
         platforms.add(new Vodoravna(200, 340, 0, 1.0));
         platforms.add(new slopeDown(400, 340, 0, 1.0));
         platforms.add(new Navpicna(600, 340, 0, 1.0));
         
         // Fourth level platforms
+        platforms.add(new Navpicna(100, 270, 0, 1.0));
         platforms.add(new slopeDown(100, 270, 0, 1.0));
         platforms.add(new Vodoravna(300, 270, 0, 1.0));
         platforms.add(new slopeUp(500, 270, 0, 1.0));
+        platforms.add(new Navpicna(600, 270, 0, 1.0));
         
         // Fifth level platforms
+        platforms.add(new Navpicna(100, 200, 0, 1.0));
         platforms.add(new Vodoravna(400, 200, 0, 1.0));
+        platforms.add(new Navpicna(600, 200, 0, 1.0));
         
         // Sixth level platforms
+        platforms.add(new Navpicna(100, 130, 0, 1.0));
         platforms.add(new Vodoravna(200, 130, 0, 1.0));
         platforms.add(new Vodoravna(500, 130, 0, 1.0));
-        
+        platforms.add(new Navpicna(600, 130, 0, 1.0));
+
         // Top level platform (goal)
         platforms.add(new Vodoravna(350, 60, 0, 1.0));
     }
@@ -112,6 +131,10 @@ class GamePanel extends JPanel {
             drawPlatform(g2d, platform);
         }
         
+        // drawing the King
+
+        movingKing(g2d, new King(190, 510, 1, 10, 10, 10));
+
         // Draw "goal" text at the top platform
         g2d.setColor(Color.YELLOW);
         g2d.setFont(new Font("Arial", Font.BOLD, 16));
@@ -119,7 +142,7 @@ class GamePanel extends JPanel {
         
         // Draw "start" text at the bottom platform
         g2d.setColor(Color.GREEN);
-        g2d.drawString("START", 100, 545);
+        g2d.drawString("START", 120, 545);
     }
     
     private void drawPlatform(Graphics2D g2d, Platform platform) {
@@ -136,11 +159,26 @@ class GamePanel extends JPanel {
             g2d.draw(new Line2D.Double(x, y - platformLength, x, y));
         } else if (platform instanceof slopeDown) {
             g2d.setColor(Color.ORANGE);
-            g2d.draw(new Line2D.Double(x, y, x + platformLength, y + platformLength));
+            g2d.draw(new Line2D.Double(x, y, x + platformLength*Math.sqrt(2)/2, y + platformLength*Math.sqrt(2)/2));
         } else if (platform instanceof slopeUp) {
             g2d.setColor(Color.MAGENTA);
-            g2d.draw(new Line2D.Double(x, y, x + platformLength, y - platformLength));
+            g2d.draw(new Line2D.Double(x, y, x + platformLength*Math.sqrt(2)/2, y - platformLength*Math.sqrt(2)/2));
         }
+    }
+
+    private void movingKing(Graphics2D g2d, King king) {
+        
+        float x = king.getX();
+        float y = king.getY();
+        float kot = king.getKot();
+        float hitrost = king.getHitrost();
+        float jumpStrength = king.getJumpStrength();
+        float weight = king.getWeight();
+        Image image = king.getImage();
+
+        g2d.drawImage(image, (int)x, (int)y, image.getWidth(null)/4, image.getHeight(null)/4, null);
+
+
     }
 }
 
@@ -212,5 +250,83 @@ class slopeDown extends Platform {
 class slopeUp extends Platform {
     public slopeUp(double x, double y, float kot, double trdota) {
         super(x, y, (float) Math.toRadians(135), 1.0);
+    }
+}
+
+class King {
+
+
+    private float x;
+    private float y;
+    private float kot;
+    private float hitrost;
+    private float jumpStrength, weight;
+    private Image image;
+
+    public King(float x, float y, float kot, float hitrost, float jumpStrength, float weight) {
+        super();
+        this.x = x;
+        this.y = y;
+        this.kot = kot;
+        this.hitrost = hitrost;
+        this.jumpStrength = jumpStrength;
+        this.weight = weight;
+
+        try {
+            this.image = ImageIO.read(new File("elephant.png"));;
+        } catch (IOException e) {
+        }
+        }
+
+    public float getX() {
+        return x;
+    }
+    
+    public float getY() {
+        return y;
+    }
+    
+    public float getKot() {
+        return kot;
+    }
+    
+    public float getJumpStrength() {
+        return jumpStrength;
+    }
+
+    public float getWeight() {
+        return weight;
+    }
+    
+    public float getHitrost() {
+        return hitrost;
+    }
+
+    public Image getImage() {
+        return image;
+    }
+    
+    public void setX(float x) {
+        this.x = x;
+    }
+    
+    public void setY(float y) {
+        this.y = y;
+    }
+    
+    public void setKot(float kot) {
+        this.kot = kot;
+    }
+    
+    public void setHitrost(float hitrost) {
+        this.hitrost = hitrost;
+    }
+    
+    public void setWeight(float weight) {
+        this.weight = weight;
+    }
+    
+    public void setJumpStrength(float jumpStrength) {
+        this.jumpStrength = jumpStrength;
     }
 }
