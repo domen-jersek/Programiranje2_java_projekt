@@ -15,6 +15,9 @@ import javax.imageio.*;
 import java.io.File;
 import java.awt.Image;
 import java.io.IOException;
+import java.security.Key;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 
 public class JumpKingPlatformLayout {
     public static void main(String[] args) {
@@ -45,9 +48,10 @@ public class JumpKingPlatformLayout {
         frame.setVisible(true);
         
         while (true) {
+            panel.update(); // Add this line
             frame.repaint();
             try {
-                Thread.sleep(50);
+                Thread.sleep(16); // ~60 FPS
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -56,14 +60,44 @@ public class JumpKingPlatformLayout {
 }
 
 @SuppressWarnings("serial")
-class GamePanel extends JPanel {
+class GamePanel extends JPanel implements KeyListener{
+
     private List<Platform> platforms;
+    private King king;
+    private boolean[] keys = new boolean[256]; // Track pressed keys
+    
     
     public GamePanel() {
         super();
         setBackground(Color.BLACK);
+        setFocusable(true);
+        addKeyListener(this);
+        requestFocusInWindow();
         initializePlatforms();
+        king = new King(190, 510, 0, 0, 15, 0.5f);
     }
+
+    public void update() {
+        // Handle input
+        if (keys[KeyEvent.VK_LEFT] || keys[KeyEvent.VK_A]) {
+            king.move(-1);
+        }
+        if (keys[KeyEvent.VK_RIGHT] || keys[KeyEvent.VK_D]) {
+            king.move(1);
+        }
+        if (keys[KeyEvent.VK_SPACE] || keys[KeyEvent.VK_UP] || keys[KeyEvent.VK_W]) {
+            king.jump();
+        }
+        
+        // Update physics
+        king.update();
+        
+        // Check collisions
+        checkCollisions();
+    }
+
+
+
     
     private void initializePlatforms() {
         platforms = new ArrayList<>();
@@ -132,8 +166,8 @@ class GamePanel extends JPanel {
         }
         
         // drawing the King
-
-        movingKing(g2d, new King(190, 510, 1, 10, 10, 10));
+        drawKing(g2d);
+        //movingKing(g2d, new King(190, 510, 1, 10, 10, 10));
 
         // Draw "goal" text at the top platform
         g2d.setColor(Color.YELLOW);
@@ -143,6 +177,20 @@ class GamePanel extends JPanel {
         // Draw "start" text at the bottom platform
         g2d.setColor(Color.GREEN);
         g2d.drawString("START", 120, 545);
+    }
+
+    private void drawKing(Graphics2D g2d) {
+        float x = king.getX();
+        float y = king.getY();
+        Image image = king.getImage();
+        
+        if (image != null) {
+            g2d.drawImage(image, (int)x, (int)y, (int)king.getWidth(), (int)king.getHeight(), null);
+        } else {
+            // Draw a simple rectangle if image is missing
+            g2d.setColor(Color.RED);
+            g2d.fillRect((int)x, (int)y, (int)king.getWidth(), (int)king.getHeight());
+        }
     }
     
     private void drawPlatform(Graphics2D g2d, Platform platform) {
@@ -166,19 +214,148 @@ class GamePanel extends JPanel {
         }
     }
 
-    private void movingKing(Graphics2D g2d, King king) {
+    // private void movingKing(Graphics2D g2d, King king) {
         
-        float x = king.getX();
-        float y = king.getY();
-        float kot = king.getKot();
-        float hitrost = king.getHitrost();
-        float jumpStrength = king.getJumpStrength();
-        float weight = king.getWeight();
-        Image image = king.getImage();
+    //     float x = king.getX();
+    //     float y = king.getY();
+    //     float kot = king.getKot();
+    //     //float hitrost = king.getHitrost();
+    //     float jumpStrength = king.getJumpStrength();
+    //     float weight = king.getWeight();
+    //     Image image = king.getImage();
 
-        g2d.drawImage(image, (int)x, (int)y, image.getWidth(null)/4, image.getHeight(null)/4, null);
+    //     g2d.drawImage(image, (int)x, (int)y, image.getWidth(null)/4, image.getHeight(null)/4, null);
 
 
+    // }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        keys[e.getKeyCode()] = true;
+    }
+    
+    @Override
+    public void keyReleased(KeyEvent e) {
+        keys[e.getKeyCode()] = false;
+    }
+    
+    @Override
+    public void keyTyped(KeyEvent e) {
+        // Not used
+    }
+
+//////////////////collision detection/////////////////////
+    private void checkCollisions() {
+        float kingWidth = king.getWidth();
+        float kingHeight = king.getHeight();
+        float kingX = king.getX();
+        float kingY = king.getY();
+        
+        for (Platform platform : platforms) {
+            if (platform instanceof Vodoravna) {
+                checkHorizontalPlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
+            } else if (platform instanceof Navpicna) {
+                checkVerticalPlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
+            } else if (platform instanceof slopeDown || platform instanceof slopeUp) {
+                checkSlopePlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
+            }
+        }
+        
+        // Check screen boundaries
+        checkScreenBoundaries();
+    }
+
+    private void checkHorizontalPlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
+        float platX = (float) platform.getX();
+        float platY = (float) platform.getY();
+        float platWidth = 100;
+        float platHeight = 3; // Thickness of platform
+        
+        // Check if king is intersecting with platform
+        if (kingX < platX + platWidth && kingX + kingWidth > platX &&
+            kingY < platY + platHeight && kingY + kingHeight > platY) {
+            
+            // Determine collision direction
+            float overlapLeft = (kingX + kingWidth) - platX;
+            float overlapRight = (platX + platWidth) - kingX;
+            float overlapTop = (kingY + kingHeight) - platY;
+            float overlapBottom = (platY + platHeight) - kingY;
+            
+            // Find minimum overlap
+            float minOverlap = Math.min(Math.min(overlapLeft, overlapRight), Math.min(overlapTop, overlapBottom));
+            
+            if (minOverlap == overlapTop && king.getVelocityY() > 0) {
+                // Landing on top of platform
+                king.setY(platY - kingHeight);
+                king.land();
+            } else if (minOverlap == overlapBottom && king.getVelocityY() < 0) {
+                // Hitting platform from below
+                king.setY(platY + platHeight);
+                king.setVelocityY(0);
+            } else if (minOverlap == overlapLeft && king.getVelocityX() > 0) {
+                // Hitting platform from left
+                king.setX(platX - kingWidth);
+                king.setVelocityX(0);
+            } else if (minOverlap == overlapRight && king.getVelocityX() < 0) {
+                // Hitting platform from right
+                king.setX(platX + platWidth);
+                king.setVelocityX(0);
+            }
+        }
+    }
+    
+    private void checkVerticalPlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
+        float platX = (float) platform.getX();
+        float platY = (float) platform.getY();
+        float platWidth = 3; // Thickness of vertical platform
+        float platHeight = 100;
+        
+        // Adjust platform Y to start from top
+        platY -= platHeight;
+        
+        if (kingX < platX + platWidth && kingX + kingWidth > platX &&
+            kingY < platY + platHeight && kingY + kingHeight > platY) {
+            
+            float overlapLeft = (kingX + kingWidth) - platX;
+            float overlapRight = (platX + platWidth) - kingX;
+            
+            if (overlapLeft < overlapRight && king.getVelocityX() > 0) {
+                king.setX(platX - kingWidth);
+                king.setVelocityX(0);
+            } else if (king.getVelocityX() < 0) {
+                king.setX(platX + platWidth);
+                king.setVelocityX(0);
+            }
+        }
+    }
+    
+    private void checkSlopePlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
+        //TODO
+        checkHorizontalPlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
+    }
+    
+    private void checkScreenBoundaries() {
+        // Keep king within screen bounds
+        if (king.getX() < 0) {
+            king.setX(0);
+            king.setVelocityX(0);
+        } else if (king.getX() + king.getWidth() > getWidth()) {
+            king.setX(getWidth() - king.getWidth());
+            king.setVelocityX(0);
+        }
+        
+        // Reset if king falls too far
+        if (king.getY() > getHeight() + 100) {
+            resetKingPosition();
+        }
+    }
+
+
+    private void resetKingPosition() {
+        king.setX(190);
+        king.setY(510);
+        king.setVelocityX(0);
+        king.setVelocityY(0);
     }
 }
 
@@ -259,25 +436,91 @@ class King {
     private float x;
     private float y;
     private float kot;
-    private float hitrost;
+    private float hitrostX, hitrostY;
     private float jumpStrength, weight;
     private Image image;
+    private boolean onGround;
+    private boolean jumping;
+
+    private static final float GRAVITY = 0.8f;
+    private static final float GROUND_FRICTION = 0.60f;
+    private static final float AIR_RESISTANCE = 0.98f;
+    private static final float MOVE_SPEED = 2.0f;
+    private static final float MAX_FALL_SPEED = 15.0f;
 
     public King(float x, float y, float kot, float hitrost, float jumpStrength, float weight) {
         super();
         this.x = x;
         this.y = y;
         this.kot = kot;
-        this.hitrost = hitrost;
+        this.hitrostX = hitrost;
+        this.hitrostY = 0;
         this.jumpStrength = jumpStrength;
         this.weight = weight;
+        this.onGround = false;
+        this.jumping = false;
 
         try {
             this.image = ImageIO.read(new File("elephant.png"));;
         } catch (IOException e) {
+            this.image = null;
         }
         }
 
+
+    public void update() {
+        // Apply gravity
+        if (!onGround) {
+            hitrostY += GRAVITY;
+            if (hitrostY > MAX_FALL_SPEED) {
+                hitrostY = MAX_FALL_SPEED;
+            }
+        }
+        
+        // Apply air resistance/friction
+        if (onGround) {
+            hitrostX *= GROUND_FRICTION;
+        } else {
+            hitrostX *= AIR_RESISTANCE;
+        }
+        
+        // Update position
+        x += hitrostX;
+        y += hitrostY;
+        
+        // Reset ground flag (will be set by collision detection)
+        onGround = false;
+    }
+
+    public void move(float deltaX) {
+        if (onGround) {
+            hitrostX += deltaX * MOVE_SPEED;
+        } else {
+            hitrostX += deltaX * MOVE_SPEED * 0.3f; // Reduced air control
+        }
+    }
+
+    public void jump() {
+        if (onGround && !jumping) {
+            hitrostY = -jumpStrength;
+            onGround = false;
+            jumping = true;
+        }
+    }
+
+    public void land() {
+        onGround = true;
+        jumping = false;
+        hitrostY = 0;
+    }
+
+    public float getWidth() { return image != null ? image.getWidth(null) / 4 : 20; }
+    public float getHeight() { return image != null ? image.getHeight(null) / 4 : 20; }
+    public boolean isOnGround() { return onGround; }
+    public float getVelocityX() { return hitrostX; }
+    public float getVelocityY() { return hitrostY; }
+    public void setVelocityX(float vx) { this.hitrostX = vx; }
+    public void setVelocityY(float vy) { this.hitrostY = vy; }
     public float getX() {
         return x;
     }
@@ -298,9 +541,9 @@ class King {
         return weight;
     }
     
-    public float getHitrost() {
-        return hitrost;
-    }
+    // public float getHitrost() {
+    //     return hitrost;
+    // }
 
     public Image getImage() {
         return image;
@@ -318,9 +561,9 @@ class King {
         this.kot = kot;
     }
     
-    public void setHitrost(float hitrost) {
-        this.hitrost = hitrost;
-    }
+    // public void setHitrost(float hitrost) {
+    //     this.hitrost = hitrost;
+    // }
     
     public void setWeight(float weight) {
         this.weight = weight;
