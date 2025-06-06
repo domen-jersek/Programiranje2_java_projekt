@@ -6,22 +6,22 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
-import java.awt.geom.Line2D;
-import java.util.ArrayList;
-import java.util.List;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.imageio.*;
-import java.io.File;
 import java.awt.Image;
-import java.io.IOException;
-import java.security.Key;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.geom.Line2D;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import javax.imageio.*;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
 
 public class JumpKingPlatformLayout {
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Jump King Platform Layout");
+        JFrame frame = new JFrame("Infinite Height Platformer");
         frame.setSize(new Dimension(800, 600));
         frame.setMinimumSize(new Dimension(800, 600));
         frame.setResizable(true);
@@ -48,7 +48,7 @@ public class JumpKingPlatformLayout {
         frame.setVisible(true);
         
         while (true) {
-            panel.update(); // Add this line
+            panel.update();
             frame.repaint();
             try {
                 Thread.sleep(16); // ~60 FPS
@@ -64,7 +64,18 @@ class GamePanel extends JPanel implements KeyListener{
 
     private List<Platform> platforms;
     private King king;
-    private boolean[] keys = new boolean[256]; // Track pressed keys
+    private boolean[] keys = new boolean[256];
+    private float cameraY = 0; // Camera offset for following the player
+    private int currentHeight = 0; // Track how high we've generated
+    private Random random = new Random();
+    private int maxHeightAchieved = 0;
+    
+    // Configuration for infinite generation
+    private static final int LEVEL_HEIGHT = 100; // Vertical spacing between levels
+    private static final int SCREEN_HEIGHT = 600;
+    private static final int GENERATION_BUFFER = 1000; // Generate platforms this far ahead
+    private static final int MAX_PLATFORMS_PER_LEVEL = 4;
+    private static final int MIN_PLATFORMS_PER_LEVEL = 2;
     
     
     public GamePanel() {
@@ -74,7 +85,7 @@ class GamePanel extends JPanel implements KeyListener{
         addKeyListener(this);
         requestFocusInWindow();
         initializePlatforms();
-        king = new King(190, 510, 0, 0, 15, 0.5f);
+        king = new King(350, 510, 0, 0, 15, 0.5f);
     }
 
     public void update() {
@@ -94,14 +105,41 @@ class GamePanel extends JPanel implements KeyListener{
         
         // Check collisions
         checkCollisions();
+        
+        // Update camera to follow player
+        updateCamera();
+        
+        // Generate more platforms if needed
+        generateMorePlatforms();
     }
-
-
-
+    
+    private void updateCamera() {
+        // Follow the player vertically with some smoothing
+        float targetCameraY = king.getY() - SCREEN_HEIGHT * 0.7f; // Keep player in lower 70% of screen
+        cameraY += (targetCameraY - cameraY) * 0.1f; // Smooth camera movement
+    }
+    
+    private void generateMorePlatforms() {
+        // Check if we need to generate more platforms above current height
+        if (king.getY() < currentHeight + GENERATION_BUFFER) {
+            generatePlatformsToHeight(currentHeight - 2000); // Generate 2000 pixels higher
+        }
+    }
     
     private void initializePlatforms() {
         platforms = new ArrayList<>();
         
+        // Create your custom starting levels
+        createCustomStartingLevels();
+        
+        // Set currentHeight to start generating above your custom levels
+        currentHeight = 50; // Start generating above your highest platform
+        
+        // Generate initial tower of platforms above the custom ones
+        generatePlatformsToHeight(-3000); // Generate 3000 pixels up initially
+    }
+    
+    private void createCustomStartingLevels() {
         // Ground platform
         platforms.add(new Navpicna(100, 550, 0, 1.0));
         platforms.add(new Vodoravna(100, 550, 0, 1.0));
@@ -148,8 +186,76 @@ class GamePanel extends JPanel implements KeyListener{
         platforms.add(new Vodoravna(500, 130, 0, 1.0));
         platforms.add(new Navpicna(600, 130, 0, 1.0));
 
-        // Top level platform (goal)
+        // Top level platform (goal marker, but not the end!)
         platforms.add(new Vodoravna(350, 60, 0, 1.0));
+    }
+    
+    private void generatePlatformsToHeight(int targetHeight) {
+        int levelY = currentHeight;
+        
+        while (levelY > targetHeight) {
+            levelY -= LEVEL_HEIGHT;
+            generateLevelAt(levelY);
+        }
+        
+        currentHeight = targetHeight;
+    }
+    
+    private void generateLevelAt(int y) {
+        // Determine how many platforms this level should have
+        int numPlatforms = MIN_PLATFORMS_PER_LEVEL + random.nextInt(MAX_PLATFORMS_PER_LEVEL - MIN_PLATFORMS_PER_LEVEL + 1);
+        
+        // Create a list of possible X positions
+        List<Integer> xPositions = new ArrayList<>();
+        for (int x = 100; x <= 500; x += 100) {
+            xPositions.add(x);
+        }
+        
+        // Randomly select positions for platforms
+        for (int i = 0; i < numPlatforms && !xPositions.isEmpty(); i++) {
+            int index = random.nextInt(xPositions.size());
+            int x = xPositions.remove(index);
+            
+            // Choose platform type based on probability
+            Platform platform = createRandomPlatform(x, y);
+            platforms.add(platform);
+
+            // Add vertical barrier
+            platforms.add(new Navpicna(100, y, 0, 1.0));
+            platforms.add(new Navpicna(600, y, 0, 1.0));
+        }
+        
+        // Occasionally add extra challenge elements
+        // if (random.nextFloat() < 0.3f) { // 30% chance
+        //     addChallengeElement(y);
+        // }
+    }
+    
+    private Platform createRandomPlatform(int x, int y) {
+        float rand = random.nextFloat();
+        
+        if (rand < 0.5f) {
+            return new Vodoravna(x, y, 0, 1.0); // 50% horizontal
+        } else if (rand < 0.75f) {
+            return new slopeUp(x, y, 0, 1.0); // 25% slope up
+        } else {
+            return new slopeDown(x, y, 0, 1.0); // 25% slope down
+        }
+    }
+    
+    private void addChallengeElement(int y) {
+        // Add challenging combinations
+        if (random.nextFloat() < 0.5f) {
+            // Create a gap that requires a long jump
+            int startX = 150 + random.nextInt(200);
+            platforms.add(new Vodoravna(startX, y, 0, 1.0));
+            platforms.add(new Vodoravna(startX + 250, y, 0, 1.0)); // Wide gap
+        } else {
+            // Create a wall maze
+            int x = 200 + random.nextInt(300);
+            platforms.add(new Navpicna(x, y + 30, 0, 1.0));
+            platforms.add(new Navpicna(x + 100, y - 30, 0, 1.0));
+        }
     }
     
     @Override
@@ -157,26 +263,51 @@ class GamePanel extends JPanel implements KeyListener{
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
         
+        // Apply camera transform
+        g2d.translate(0, -cameraY);
+        
         // Set rendering quality
         g2d.setStroke(new BasicStroke(3));
         
-        // Draw all platforms
+        // Draw all platforms (only those visible on screen for performance)
         for (Platform platform : platforms) {
-            drawPlatform(g2d, platform);
+            float platY = (float) platform.getY();
+            // Only draw platforms that might be visible
+            if (platY > cameraY - 100 && platY < cameraY + SCREEN_HEIGHT + 100) {
+                drawPlatform(g2d, platform);
+            }
         }
         
-        // drawing the King
+        // Draw the King
         drawKing(g2d);
-        //movingKing(g2d, new King(190, 510, 1, 10, 10, 10));
-
-        // Draw "goal" text at the top platform
-        g2d.setColor(Color.YELLOW);
-        g2d.setFont(new Font("Arial", Font.BOLD, 16));
-        g2d.drawString("GOAL", 350, 50);
         
-        // Draw "start" text at the bottom platform
+        // Reset transform for UI elements
+        g2d.translate(0, cameraY);
+        
+        // Draw UI elements (height counter, etc.)
+        
+        drawUI(g2d);
+    }
+    
+    private void drawUI(Graphics2D g2d) {
+        // Draw current height achieved
+        int heightAchieved = Math.max(0, (int)(550 - king.getY()) / 10); // Convert to "floors"
+        
+        if (heightAchieved > maxHeightAchieved)
+            maxHeightAchieved = heightAchieved;
+
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Arial", Font.BOLD, 16));
+        g2d.drawString("Curent best: " + maxHeightAchieved + "m", 10, 30);
+
         g2d.setColor(Color.GREEN);
-        g2d.drawString("START", 120, 545);
+        g2d.setFont(new Font("Arial", Font.BOLD, 16));
+        g2d.drawString("Current height: " + heightAchieved + "m", 10, 60);
+        
+        // Draw controls
+        g2d.setFont(new Font("Arial", Font.PLAIN, 12));
+        g2d.drawString("Controls: A/D - Move, W/Space - Jump", 10, getHeight() - 40);
+        g2d.drawString("Goal: Reach as high as possible!", 10, getHeight() - 20);
     }
 
     private void drawKing(Graphics2D g2d) {
@@ -197,7 +328,6 @@ class GamePanel extends JPanel implements KeyListener{
         int platformLength = 100;
         double x = platform.getX();
         double y = platform.getY();
-        float angle = platform.getKot();
         
         if (platform instanceof Vodoravna) {
             g2d.setColor(Color.WHITE);
@@ -214,21 +344,6 @@ class GamePanel extends JPanel implements KeyListener{
         }
     }
 
-    // private void movingKing(Graphics2D g2d, King king) {
-        
-    //     float x = king.getX();
-    //     float y = king.getY();
-    //     float kot = king.getKot();
-    //     //float hitrost = king.getHitrost();
-    //     float jumpStrength = king.getJumpStrength();
-    //     float weight = king.getWeight();
-    //     Image image = king.getImage();
-
-    //     g2d.drawImage(image, (int)x, (int)y, image.getWidth(null)/4, image.getHeight(null)/4, null);
-
-
-    // }
-
     @Override
     public void keyPressed(KeyEvent e) {
         keys[e.getKeyCode()] = true;
@@ -244,7 +359,7 @@ class GamePanel extends JPanel implements KeyListener{
         // Not used
     }
 
-//////////////////collision detection/////////////////////
+    // Collision detection methods remain the same as original
     private void checkCollisions() {
         float kingWidth = king.getWidth();
         float kingHeight = king.getHeight();
@@ -252,6 +367,10 @@ class GamePanel extends JPanel implements KeyListener{
         float kingY = king.getY();
         
         for (Platform platform : platforms) {
+            // Only check collision with platforms near the player for performance
+            float platY = (float) platform.getY();
+            if (Math.abs(platY - kingY) > 200) continue; // Skip distant platforms
+            
             if (platform instanceof Vodoravna) {
                 checkHorizontalPlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
             } else if (platform instanceof Navpicna) {
@@ -269,35 +388,28 @@ class GamePanel extends JPanel implements KeyListener{
         float platX = (float) platform.getX();
         float platY = (float) platform.getY();
         float platWidth = 100;
-        float platHeight = 3; // Thickness of platform
+        float platHeight = 3;
         
-        // Check if king is intersecting with platform
         if (kingX < platX + platWidth && kingX + kingWidth > platX &&
             kingY < platY + platHeight && kingY + kingHeight > platY) {
             
-            // Determine collision direction
             float overlapLeft = (kingX + kingWidth) - platX;
             float overlapRight = (platX + platWidth) - kingX;
             float overlapTop = (kingY + kingHeight) - platY;
             float overlapBottom = (platY + platHeight) - kingY;
             
-            // Find minimum overlap
             float minOverlap = Math.min(Math.min(overlapLeft, overlapRight), Math.min(overlapTop, overlapBottom));
             
             if (minOverlap == overlapTop && king.getVelocityY() > 0) {
-                // Landing on top of platform
                 king.setY(platY - kingHeight);
                 king.land();
             } else if (minOverlap == overlapBottom && king.getVelocityY() < 0) {
-                // Hitting platform from below
                 king.setY(platY + platHeight);
                 king.setVelocityY(0);
             } else if (minOverlap == overlapLeft && king.getVelocityX() > 0) {
-                // Hitting platform from left
                 king.setX(platX - kingWidth);
                 king.setVelocityX(0);
             } else if (minOverlap == overlapRight && king.getVelocityX() < 0) {
-                // Hitting platform from right
                 king.setX(platX + platWidth);
                 king.setVelocityX(0);
             }
@@ -307,10 +419,9 @@ class GamePanel extends JPanel implements KeyListener{
     private void checkVerticalPlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
         float platX = (float) platform.getX();
         float platY = (float) platform.getY();
-        float platWidth = 3; // Thickness of vertical platform
+        float platWidth = 3;
         float platHeight = 100;
         
-        // Adjust platform Y to start from top
         platY -= platHeight;
         
         if (kingX < platX + platWidth && kingX + kingWidth > platX &&
@@ -334,45 +445,35 @@ class GamePanel extends JPanel implements KeyListener{
         float platY = (float) platform.getY();
         float platWidth = 100;
         
-        // Check if king is horizontally within the slope's range
         float kingCenterX = kingX + kingWidth / 2;
         if (kingCenterX < platX || kingCenterX > platX + platWidth * Math.sqrt(2) / 2) {
-            return; // King is not over the slope
+            return;
         }
         
-        // Calculate the slope line equation
         float slopeHeight;
         float relativeX = kingCenterX - platX;
         
         if (platform instanceof slopeDown) {
-            // For downward slope: y increases as x increases
-            slopeHeight = platY + relativeX; // 45-degree slope
+            slopeHeight = platY + relativeX;
         } else if (platform instanceof slopeUp) {
-            // For upward slope: y decreases as x increases
-            slopeHeight = platY - relativeX; // 45-degree slope going up
+            slopeHeight = platY - relativeX;
         } else {
             return;
         }
         
-        // Check if king is touching or below the slope line
         float kingBottom = kingY + kingHeight;
         
         if (kingBottom >= slopeHeight && kingY < slopeHeight + 10) {
             if (king.getVelocityY() >= 0) {
-                // King is on the slope (falling down or stationary)
                 king.setY(slopeHeight - kingHeight);
                 king.land();
                 
-                // Optional: Add some slope physics
                 if (platform instanceof slopeDown) {
-                    // Add slight forward momentum on downward slopes
                     king.setVelocityX(king.getVelocityX() + 0.5f);
                 } else if (platform instanceof slopeUp) {
-                    // Reduce momentum on upward slopes
                     king.setVelocityX(king.getVelocityX() * 0.8f);
                 }
             } else if (kingY > slopeHeight - kingHeight) {
-                // King hit slope from below (his top is below the slope line) - block him
                 king.setY(slopeHeight + 10);
                 king.setVelocityY(0);
             }
@@ -380,7 +481,6 @@ class GamePanel extends JPanel implements KeyListener{
     }
     
     private void checkScreenBoundaries() {
-        // Keep king within screen bounds
         if (king.getX() < 0) {
             king.setX(0);
             king.setVelocityX(0);
@@ -389,66 +489,40 @@ class GamePanel extends JPanel implements KeyListener{
             king.setVelocityX(0);
         }
         
-        // Reset if king falls too far
-        if (king.getY() > getHeight() + 100) {
+        // Reset if king falls too far below starting position
+        if (king.getY() > 700) {
             resetKingPosition();
         }
     }
 
-
     private void resetKingPosition() {
-        king.setX(190);
+        king.setX(350);
         king.setY(510);
         king.setVelocityX(0);
         king.setVelocityY(0);
+        // Reset camera too
+        cameraY = 0;
     }
 }
 
+// Platform classes remain the same
 class Platform {
-    private double x;
-    private double y;
+    private double x, y;
     private float kot;
     private double trdota;
     
     public Platform(double x, double y, float kot, double trdota) {
-        super();
-        this.x = x;
-        this.y = y;
-        this.kot = kot;
-        this.trdota = trdota;
+        this.x = x; this.y = y; this.kot = kot; this.trdota = trdota;
     }
     
-    public double getX() {
-        return x;
-    }
-    
-    public double getY() {
-        return y;
-    }
-    
-    public float getKot() {
-        return kot;
-    }
-    
-    public double getTrdota() {
-        return trdota;
-    }
-    
-    public void setX(double x) {
-        this.x = x;
-    }
-    
-    public void setY(double y) {
-        this.y = y;
-    }
-    
-    public void setKot(float kot) {
-        this.kot = kot;
-    }
-    
-    public void setTrdota(double trdota) {
-        this.trdota = trdota;
-    }
+    public double getX() { return x; }
+    public double getY() { return y; }
+    public float getKot() { return kot; }
+    public double getTrdota() { return trdota; }
+    public void setX(double x) { this.x = x; }
+    public void setY(double y) { this.y = y; }
+    public void setKot(float kot) { this.kot = kot; }
+    public void setTrdota(double trdota) { this.trdota = trdota; }
 }
 
 class Vodoravna extends Platform {
@@ -475,18 +549,11 @@ class slopeUp extends Platform {
     }
 }
 
+// King class remains the same
 class King {
-
-
-    private float x;
-    private float y;
-    private float kot;
-    private float hitrostX, hitrostY;
-    private float jumpStrength, weight;
+    private float x, y, kot, hitrostX, hitrostY, jumpStrength, weight;
     private Image image;
-    private boolean onGround;
-    private boolean jumping;
-
+    private boolean onGround, jumping;
     private static final float GRAVITY = 0.8f;
     private static final float GROUND_FRICTION = 0.60f;
     private static final float AIR_RESISTANCE = 0.98f;
@@ -494,71 +561,34 @@ class King {
     private static final float MAX_FALL_SPEED = 15.0f;
 
     public King(float x, float y, float kot, float hitrost, float jumpStrength, float weight) {
-        super();
-        this.x = x;
-        this.y = y;
-        this.kot = kot;
-        this.hitrostX = hitrost;
-        this.hitrostY = 0;
-        this.jumpStrength = jumpStrength;
-        this.weight = weight;
-        this.onGround = false;
-        this.jumping = false;
-
-        try {
-            this.image = ImageIO.read(new File("elephant.png"));;
-        } catch (IOException e) {
-            this.image = null;
-        }
-        }
-
+        this.x = x; this.y = y; this.kot = kot; this.hitrostX = hitrost; this.hitrostY = 0;
+        this.jumpStrength = jumpStrength; this.weight = weight; this.onGround = false; this.jumping = false;
+        try { this.image = ImageIO.read(new File("elephant.png")); } 
+        catch (IOException e) { this.image = null; }
+    }
 
     public void update() {
-        // Apply gravity
         if (!onGround) {
             hitrostY += GRAVITY;
-            if (hitrostY > MAX_FALL_SPEED) {
-                hitrostY = MAX_FALL_SPEED;
-            }
+            if (hitrostY > MAX_FALL_SPEED) hitrostY = MAX_FALL_SPEED;
         }
-        
-        // Apply air resistance/friction
-        if (onGround) {
-            hitrostX *= GROUND_FRICTION;
-        } else {
-            hitrostX *= AIR_RESISTANCE;
-        }
-        
-        // Update position
-        x += hitrostX;
-        y += hitrostY;
-        
-        // Reset ground flag (will be set by collision detection)
-        onGround = false;
+        hitrostX *= onGround ? GROUND_FRICTION : AIR_RESISTANCE;
+        x += hitrostX; y += hitrostY; onGround = false;
     }
 
     public void move(float deltaX) {
-        if (onGround) {
-            hitrostX += deltaX * MOVE_SPEED;
-        } else {
-            hitrostX += deltaX * MOVE_SPEED * 0.3f; // Reduced air control
-        }
+        hitrostX += deltaX * MOVE_SPEED * (onGround ? 1.0f : 0.3f);
     }
 
     public void jump() {
         if (onGround && !jumping) {
-            hitrostY = -jumpStrength;
-            onGround = false;
-            jumping = true;
+            hitrostY = -jumpStrength; onGround = false; jumping = true;
         }
     }
 
-    public void land() {
-        onGround = true;
-        jumping = false;
-        hitrostY = 0;
-    }
+    public void land() { onGround = true; jumping = false; hitrostY = 0; }
 
+    // Getters and setters
     public float getWidth() { return image != null ? image.getWidth(null) / 4 : 20; }
     public float getHeight() { return image != null ? image.getHeight(null) / 4 : 20; }
     public boolean isOnGround() { return onGround; }
@@ -566,55 +596,15 @@ class King {
     public float getVelocityY() { return hitrostY; }
     public void setVelocityX(float vx) { this.hitrostX = vx; }
     public void setVelocityY(float vy) { this.hitrostY = vy; }
-    public float getX() {
-        return x;
-    }
-    
-    public float getY() {
-        return y;
-    }
-    
-    public float getKot() {
-        return kot;
-    }
-    
-    public float getJumpStrength() {
-        return jumpStrength;
-    }
-
-    public float getWeight() {
-        return weight;
-    }
-    
-    // public float getHitrost() {
-    //     return hitrost;
-    // }
-
-    public Image getImage() {
-        return image;
-    }
-    
-    public void setX(float x) {
-        this.x = x;
-    }
-    
-    public void setY(float y) {
-        this.y = y;
-    }
-    
-    public void setKot(float kot) {
-        this.kot = kot;
-    }
-    
-    // public void setHitrost(float hitrost) {
-    //     this.hitrost = hitrost;
-    // }
-    
-    public void setWeight(float weight) {
-        this.weight = weight;
-    }
-    
-    public void setJumpStrength(float jumpStrength) {
-        this.jumpStrength = jumpStrength;
-    }
+    public float getX() { return x; }
+    public float getY() { return y; }
+    public float getKot() { return kot; }
+    public float getJumpStrength() { return jumpStrength; }
+    public float getWeight() { return weight; }
+    public Image getImage() { return image; }
+    public void setX(float x) { this.x = x; }
+    public void setY(float y) { this.y = y; }
+    public void setKot(float kot) { this.kot = kot; }
+    public void setWeight(float weight) { this.weight = weight; }
+    public void setJumpStrength(float jumpStrength) { this.jumpStrength = jumpStrength; }
 }
