@@ -330,8 +330,53 @@ class GamePanel extends JPanel implements KeyListener{
     }
     
     private void checkSlopePlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
-        //TODO
-        checkHorizontalPlatformCollision(platform, kingX, kingY, kingWidth, kingHeight);
+        float platX = (float) platform.getX();
+        float platY = (float) platform.getY();
+        float platWidth = 100;
+        
+        // Check if king is horizontally within the slope's range
+        float kingCenterX = kingX + kingWidth / 2;
+        if (kingCenterX < platX || kingCenterX > platX + platWidth * Math.sqrt(2) / 2) {
+            return; // King is not over the slope
+        }
+        
+        // Calculate the slope line equation
+        float slopeHeight;
+        float relativeX = kingCenterX - platX;
+        
+        if (platform instanceof slopeDown) {
+            // For downward slope: y increases as x increases
+            slopeHeight = platY + relativeX; // 45-degree slope
+        } else if (platform instanceof slopeUp) {
+            // For upward slope: y decreases as x increases
+            slopeHeight = platY - relativeX; // 45-degree slope going up
+        } else {
+            return;
+        }
+        
+        // Check if king is touching or below the slope line
+        float kingBottom = kingY + kingHeight;
+        
+        if (kingBottom >= slopeHeight && kingY < slopeHeight + 10) {
+            if (king.getVelocityY() >= 0) {
+                // King is on the slope (falling down or stationary)
+                king.setY(slopeHeight - kingHeight);
+                king.land();
+                
+                // Optional: Add some slope physics
+                if (platform instanceof slopeDown) {
+                    // Add slight forward momentum on downward slopes
+                    king.setVelocityX(king.getVelocityX() + 0.5f);
+                } else if (platform instanceof slopeUp) {
+                    // Reduce momentum on upward slopes
+                    king.setVelocityX(king.getVelocityX() * 0.8f);
+                }
+            } else if (kingY > slopeHeight - kingHeight) {
+                // King hit slope from below (his top is below the slope line) - block him
+                king.setY(slopeHeight + 10);
+                king.setVelocityY(0);
+            }
+        }
     }
     
     private void checkScreenBoundaries() {
