@@ -65,6 +65,7 @@ class GamePanel extends JPanel implements KeyListener{
     private List<Platform> platforms;
     private King king;
     private boolean[] keys = new boolean[256];
+    private float cameraX = 0; // Camera offset for centering horizontally
     private float cameraY = 0; // Camera offset for following the player
     private int currentHeight = 0; // Track how high we've generated
     private Random random = new Random();
@@ -115,8 +116,12 @@ class GamePanel extends JPanel implements KeyListener{
     
     private void updateCamera() {
         // Follow the player vertically with some smoothing
-        float targetCameraY = king.getY() - SCREEN_HEIGHT * 0.7f; // Keep player in lower 70% of screen
-        cameraY += (targetCameraY - cameraY) * 0.1f; // Smooth camera movement
+        float targetCameraY = king.getY() - getHeight() * 0.7f; // Keep player in lower 70% of screen
+        cameraY += (targetCameraY - cameraY) * 0.1f; // Smooth camera movement  
+
+        float gameWidth = 700; // The playable area width (100 to 600 + margins)
+        float targetCameraX = (getWidth() - gameWidth) / 2.0f;
+        cameraX += (targetCameraX - cameraX) * 0.1f; // Smooth horizontal centering
     }
     
     private void generateMorePlatforms() {
@@ -264,7 +269,7 @@ class GamePanel extends JPanel implements KeyListener{
         Graphics2D g2d = (Graphics2D) g;
         
         // Apply camera transform
-        g2d.translate(0, -cameraY);
+        g2d.translate(cameraX, -cameraY);
         
         // Set rendering quality
         g2d.setStroke(new BasicStroke(3));
@@ -282,7 +287,7 @@ class GamePanel extends JPanel implements KeyListener{
         drawKing(g2d);
         
         // Reset transform for UI elements
-        g2d.translate(0, cameraY);
+        g2d.translate(-cameraX, cameraY);
         
         // Draw UI elements (height counter, etc.)
         
@@ -502,6 +507,7 @@ class GamePanel extends JPanel implements KeyListener{
         king.setVelocityY(0);
         // Reset camera too
         cameraY = 0;
+        cameraX = 0;
     }
 }
 
