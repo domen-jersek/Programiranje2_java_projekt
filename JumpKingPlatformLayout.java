@@ -448,10 +448,12 @@ class GamePanel extends JPanel implements KeyListener{
     private void checkSlopePlatformCollision(Platform platform, float kingX, float kingY, float kingWidth, float kingHeight) {
         float platX = (float) platform.getX();
         float platY = (float) platform.getY();
-        float platWidth = 100;
+        float slopeLength = (float)(100 * Math.sqrt(2) / 2); // Actual slope length
         
         float kingCenterX = kingX + kingWidth / 2;
-        if (kingCenterX < platX || kingCenterX > platX + platWidth * Math.sqrt(2) / 2) {
+        
+        // Check if king is within the horizontal bounds of the slope
+        if (kingCenterX < platX || kingCenterX > platX + slopeLength) {
             return;
         }
         
@@ -459,29 +461,36 @@ class GamePanel extends JPanel implements KeyListener{
         float relativeX = kingCenterX - platX;
         
         if (platform instanceof slopeDown) {
-            slopeHeight = platY + relativeX;
+            // For downward slope: height increases as we move right
+            slopeHeight = platY + (relativeX * slopeLength / slopeLength); // 1:1 ratio for 45° slope
         } else if (platform instanceof slopeUp) {
-            slopeHeight = platY - relativeX;
+            // For upward slope: height decreases as we move right
+            slopeHeight = platY - (relativeX * slopeLength / slopeLength); // 1:1 ratio for 45° slope
         } else {
             return;
         }
         
         float kingBottom = kingY + kingHeight;
+        float tolerance = 15; // Collision tolerance
         
-        if (kingBottom >= slopeHeight && kingY < slopeHeight + 10) {
-            if (king.getVelocityY() >= 0) {
+        // Check if king is close enough to the slope surface
+        if (kingBottom >= slopeHeight - tolerance && kingBottom <= slopeHeight + tolerance) {
+            if (king.getVelocityY() >= -2) { // Allow landing if not moving up too fast
                 king.setY(slopeHeight - kingHeight);
                 king.land();
                 
+                // Apply slope physics
                 if (platform instanceof slopeDown) {
-                    king.setVelocityX(king.getVelocityX() + 0.5f);
+                    king.setVelocityX(king.getVelocityX() + 1.0f); // Speed boost downhill
                 } else if (platform instanceof slopeUp) {
-                    king.setVelocityX(king.getVelocityX() * 0.8f);
+                    king.setVelocityX(king.getVelocityX() * 0.7f); // Slow down uphill
                 }
-            } else if (kingY > slopeHeight - kingHeight) {
-                king.setY(slopeHeight + 10);
-                king.setVelocityY(0);
             }
+        }
+        // Handle ceiling collision (hitting slope from below)
+        else if (kingY <= slopeHeight + tolerance && kingY >= slopeHeight - tolerance && king.getVelocityY() < 0) {
+            king.setY(slopeHeight + tolerance);
+            king.setVelocityY(0);
         }
     }
     
